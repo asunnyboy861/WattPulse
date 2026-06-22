@@ -5,7 +5,7 @@ enum AppConfig {
     static let appBundleId = "com.zzoutuo.WattPulse"
     static let feedbackBackendURL = "https://feedback-worker.sunmingming.workers.dev"
     static let githubUser = "asunnyboy861"
-    static let contactEmail = "support@wattpulse.app"
+    static let contactEmail = "iocompile67692@gmail.com"
     static let supportPageURL = "https://\(githubUser).github.io/WattPulse/support.html"
     static let privacyPageURL = "https://\(githubUser).github.io/WattPulse/privacy.html"
     static let termsPageURL = "https://\(githubUser).github.io/WattPulse/terms.html"

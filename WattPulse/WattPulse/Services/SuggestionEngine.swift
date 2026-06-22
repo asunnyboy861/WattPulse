@@ -83,17 +83,17 @@ final class SuggestionEngine: ObservableObject {
 
     private func loadDismissedSuggestions() {
         if let data = UserDefaults.standard.data(forKey: "DISMISSED_SUGGESTIONS"),
-           let decoded = try? JSONDecoder().decode(Set<UUID>.self, from: data) {
+           let decoded = try? JSONDecoder().decode([UUID: Date].self, from: data) {
             let cutoff = Date().addingTimeInterval(-86400)
-            dismissedSuggestions = decoded.filter { _ in true }
-            if dismissedSuggestions.contains(where: { _ in Date().timeIntervalSince(cutoff) > 86400 }) {
-                dismissedSuggestions.removeAll()
-            }
+            dismissedSuggestions = Set(decoded.filter { _, dismissedDate in
+                dismissedDate > cutoff
+            }.keys)
         }
     }
 
     private func saveDismissedSuggestions() {
-        if let data = try? JSONEncoder().encode(dismissedSuggestions) {
+        let dismissedWithDates = Dictionary(uniqueKeysWithValues: dismissedSuggestions.map { ($0, Date()) })
+        if let data = try? JSONEncoder().encode(dismissedWithDates) {
             UserDefaults.standard.set(data, forKey: "DISMISSED_SUGGESTIONS")
         }
     }

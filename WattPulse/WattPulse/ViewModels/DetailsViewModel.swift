@@ -27,9 +27,10 @@ final class DetailsViewModel: ObservableObject {
 
     func loadData() async {
         guard let context = modelContext else { return }
-        let today = TimeRange.today.dateInterval
+        let calendar = Calendar.current
+        let yearAgo = calendar.date(byAdding: .year, value: -1, to: Date()) ?? Date()
         let descriptor = FetchDescriptor<DailySummary>(
-            predicate: #Predicate { $0.date >= today.start && $0.date <= today.end },
+            predicate: #Predicate { $0.date >= yearAgo },
             sortBy: [SortDescriptor(\.date)]
         )
         do {
@@ -41,7 +42,7 @@ final class DetailsViewModel: ObservableObject {
             totalConsumptionKWh = summaries.reduce(0) { $0 + $1.totalConsumptionKWh }
             totalCost = summaries.reduce(0) { $0 + $1.totalCost }
             totalCO2Offset = summaries.reduce(0) { $0 + $1.co2OffsetKg }
-            totalSavings = summaries.reduce(0) { $0 + $1.solarRevenue + $1.co2OffsetKg * 0 + max(0, -$1.totalCost) }
+            totalSavings = summaries.reduce(0) { $0 + max(0, $1.solarRevenue - $1.totalCost) }
         } catch {
             monthlyData = []
         }

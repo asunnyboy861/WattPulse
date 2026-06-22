@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 @MainActor
 final class DataReliabilityEngine: ObservableObject {
@@ -11,8 +12,19 @@ final class DataReliabilityEngine: ObservableObject {
 
     private var cache: [Date: EnergyDataPoint] = [:]
     private let maxCacheAge: TimeInterval = 86400
+    private var cacheAgeTimer: Timer?
 
-    private init() {}
+    private init() {
+        startCacheAgeTimer()
+    }
+
+    private func startCacheAgeTimer() {
+        cacheAgeTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateCacheAge()
+            }
+        }
+    }
 
     func cacheSample(_ point: EnergyDataPoint) {
         cache[point.timestamp] = point

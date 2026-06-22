@@ -18,9 +18,14 @@ struct MetricCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: iconName)
-                    .font(.title3)
-                    .foregroundStyle(color)
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: iconName)
+                        .font(.callout)
+                        .foregroundStyle(color)
+                }
                 Spacer()
             }
             Text(value)

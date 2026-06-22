@@ -1,7 +1,9 @@
 import SwiftUI
+import SwiftData
 
 struct InsightsView: View {
     @EnvironmentObject private var env: AppEnvironment
+    @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = InsightsViewModel()
 
     var body: some View {
@@ -37,6 +39,7 @@ struct InsightsView: View {
                 await viewModel.refresh()
             }
             .onAppear {
+                viewModel.setModelContext(modelContext)
                 Task { await viewModel.refresh() }
             }
         }

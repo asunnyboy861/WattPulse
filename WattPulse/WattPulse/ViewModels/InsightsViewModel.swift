@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SwiftData
 import Combine
 
 @MainActor
@@ -14,9 +15,14 @@ final class InsightsViewModel: ObservableObject {
     private let connectionManager = HAConnectionManager.shared
     private let costCalculator = CostCalculator.shared
     private var cancellables = Set<AnyCancellable>()
+    private var modelContext: ModelContext?
 
     init() {
         observeData()
+    }
+
+    func setModelContext(_ context: ModelContext) {
+        self.modelContext = context
     }
 
     private func observeData() {
@@ -45,7 +51,7 @@ final class InsightsViewModel: ObservableObject {
             averagePrice: averagePrice
         )
 
-        computeWeeklySummary()
+        await computeWeeklySummary()
         isLoading = false
     }
 
@@ -58,21 +64,62 @@ final class InsightsViewModel: ObservableObject {
         anomalyDetector.markAsNormal(hour: hour)
     }
 
-    private func computeWeeklySummary() {
+    private func computeWeeklySummary() async {
         let calendar = Calendar.current
         let now = Date()
-        let weekStart = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        let weekStart = calendar.date(byAdding: .day, value: -7, to: calendar.startOfDay(for: now)) ?? now
 
-        weeklySummary = WeeklySummary(
-            weekStart: weekStart,
-            weekEnd: now,
-            totalSolarKWh: 0,
-            totalConsumptionKWh: 0,
-            totalSavings: 0,
-            co2OffsetKg: 0,
-            bestDay: nil,
-            worstDay: nil
+        guard let context = modelContext else {
+            weeklySummary = WeeklySummary(
+                weekStart: weekStart,
+                weekEnd: now,
+                totalSolarKWh: 0,
+                totalConsumptionKWh: 0,
+                totalSavings: 0,
+                co2OffsetKg: 0,
+                bestDay: nil,
+                worstDay: nil
+            )
+            return
+        }
+
+        let descriptor = FetchDescriptor<DailySummary>(
+            predicate: #Predicate { $0.date >= weekStart && $0.date <= now },
+            sortBy: [SortDescriptor(\.date)]
         )
+
+        do {
+            let summaries = try context.fetch(descriptor)
+            let totalSolar = summaries.reduce(0.0) { $0 + $1.solarProductionKWh }
+            let totalConsumption = summaries.reduce(0.0) { $0 + $1.totalConsumptionKWh }
+            let totalSavings = summaries.reduce(0.0) { $0 + max(0, $1.solarRevenue - $1.totalCost) }
+            let totalCO2 = summaries.reduce(0.0) { $0 + $1.co2OffsetKg }
+
+            let bestDay = summaries.max(by: { $0.solarProductionKWh < $1.solarProductionKWh })?.date
+            let worstDay = summaries.max(by: { $0.totalConsumptionKWh < $1.totalConsumptionKWh })?.date
+
+            weeklySummary = WeeklySummary(
+                weekStart: weekStart,
+                weekEnd: now,
+                totalSolarKWh: totalSolar,
+                totalConsumptionKWh: totalConsumption,
+                totalSavings: totalSavings,
+                co2OffsetKg: totalCO2,
+                bestDay: bestDay,
+                worstDay: worstDay
+            )
+        } catch {
+            weeklySummary = WeeklySummary(
+                weekStart: weekStart,
+                weekEnd: now,
+                totalSolarKWh: 0,
+                totalConsumptionKWh: 0,
+                totalSavings: 0,
+                co2OffsetKg: 0,
+                bestDay: nil,
+                worstDay: nil
+            )
+        }
     }
 }
 

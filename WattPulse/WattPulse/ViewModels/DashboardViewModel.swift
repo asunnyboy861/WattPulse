@@ -35,7 +35,10 @@ final class DashboardViewModel: ObservableObject {
 
     func setModelContext(_ context: ModelContext) {
         self.modelContext = context
-        Task { await refreshChartData() }
+        Task {
+            await aggregateDailySummaries()
+            await refreshChartData()
+        }
     }
 
     private func observeEntities() {
@@ -177,19 +180,34 @@ final class DashboardViewModel: ObservableObject {
 
         do {
             let records = try context.fetch(descriptor)
-            let grouped = Dictionary(grouping: records, by: { record in
-                Calendar.current.startOfDay(for: record.timestamp)
-            })
+            let grouped: [Date: [EnergyRecord]]
+
+            switch selectedTimeRange {
+            case .today:
+                grouped = Dictionary(grouping: records, by: { record in
+                    let hour = Calendar.current.component(.hour, from: record.timestamp)
+                    return Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: record.timestamp) ?? record.timestamp
+                })
+            case .week, .month:
+                grouped = Dictionary(grouping: records, by: { record in
+                    Calendar.current.startOfDay(for: record.timestamp)
+                })
+            case .year:
+                grouped = Dictionary(grouping: records, by: { record in
+                    let components = Calendar.current.dateComponents([.year, .month], from: record.timestamp)
+                    return Calendar.current.date(from: components) ?? record.timestamp
+                })
+            }
 
             var points: [EnergyDataPoint] = []
-            for (day, dayRecords) in grouped {
-                let solar = dayRecords.filter { $0.category == "solar" }.reduce(0.0) { $0 + $1.value }
-                let grid = dayRecords.filter { $0.category == "grid" }.reduce(0.0) { $0 + $1.value }
-                let battery = dayRecords.filter { $0.category == "battery" }.reduce(0.0) { $0 + $1.value }
-                let consumption = dayRecords.filter { $0.category == "consumption" }.reduce(0.0) { $0 + $1.value }
+            for (intervalStart, intervalRecords) in grouped {
+                let solar = intervalRecords.filter { $0.category == "solar" }.reduce(0.0) { $0 + $1.value }
+                let grid = intervalRecords.filter { $0.category == "grid" }.reduce(0.0) { $0 + $1.value }
+                let battery = intervalRecords.filter { $0.category == "battery" }.reduce(0.0) { $0 + $1.value }
+                let consumption = intervalRecords.filter { $0.category == "consumption" }.reduce(0.0) { $0 + $1.value }
 
                 points.append(EnergyDataPoint(
-                    timestamp: day,
+                    timestamp: intervalStart,
                     solarProduction: solar,
                     gridImport: max(0, grid),
                     gridExport: max(0, -grid),
@@ -231,6 +249,65 @@ final class DashboardViewModel: ObservableObject {
         )
         context.insert(record)
         try? context.save()
+    }
+
+    func aggregateDailySummaries() async {
+        guard let context = modelContext else { return }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
+
+        let descriptor = FetchDescriptor<EnergyRecord>(
+            predicate: #Predicate { $0.timestamp >= sevenDaysAgo },
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+
+        do {
+            let records = try context.fetch(descriptor)
+            let grouped = Dictionary(grouping: records, by: { record in
+                calendar.startOfDay(for: record.timestamp)
+            })
+
+            for (day, dayRecords) in grouped {
+                let nextDay = calendar.date(byAdding: .day, value: 1, to: day) ?? day
+                let existingDescriptor = FetchDescriptor<DailySummary>(
+                    predicate: #Predicate { $0.date >= day && $0.date < nextDay }
+                )
+                let existing = try context.fetch(existingDescriptor)
+                let summary = existing.first ?? DailySummary(date: day)
+
+                let solarKWh = dayRecords.filter { $0.category == "solar" }.reduce(0.0) { $0 + $1.value } * 0.25
+                let gridImportKWh = dayRecords.filter { $0.category == "grid" }.filter { $0.value > 0 }.reduce(0.0) { $0 + $1.value } * 0.25
+                let gridExportKWh = dayRecords.filter { $0.category == "grid" }.filter { $0.value < 0 }.reduce(0.0) { $0 + abs($1.value) } * 0.25
+                let batteryDischargeKWh = dayRecords.filter { $0.category == "battery" }.filter { $0.value > 0 }.reduce(0.0) { $0 + $1.value } * 0.25
+                let batteryChargeKWh = dayRecords.filter { $0.category == "battery" }.filter { $0.value < 0 }.reduce(0.0) { $0 + abs($1.value) } * 0.25
+                let consumptionKWh = dayRecords.filter { $0.category == "consumption" }.reduce(0.0) { $0 + $1.value } * 0.25
+
+                let costResult = costCalculator.calculateDailyCost(
+                    solarKWh: solarKWh,
+                    gridImportKWh: gridImportKWh,
+                    gridExportKWh: gridExportKWh,
+                    date: day
+                )
+
+                summary.solarProductionKWh = solarKWh
+                summary.gridImportKWh = gridImportKWh
+                summary.gridExportKWh = gridExportKWh
+                summary.batteryDischargeKWh = batteryDischargeKWh
+                summary.batteryChargeKWh = batteryChargeKWh
+                summary.totalConsumptionKWh = consumptionKWh
+                summary.totalCost = costResult.netCost
+                summary.solarRevenue = costResult.solarRevenue
+                summary.co2OffsetKg = costResult.co2OffsetKg
+
+                if existing.isEmpty {
+                    context.insert(summary)
+                }
+            }
+            try context.save()
+        } catch {
+            // Silently fail - aggregation is best-effort
+        }
     }
 
     func dismissSuggestion(_ suggestion: EnergySuggestion) {

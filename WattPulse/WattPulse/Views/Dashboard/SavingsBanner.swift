@@ -6,17 +6,29 @@ struct SavingsBanner: View {
     let netCost: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Today's Savings")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(savings)
-                    .font(.title2.bold())
+                    .font(.title.bold())
                     .foregroundStyle(.green)
             }
 
             Spacer()
+
+            VStack(alignment: .center, spacing: 4) {
+                Text("Net Cost")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(netCost)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+            }
+
+            Divider()
+                .frame(height: 40)
 
             VStack(alignment: .trailing, spacing: 4) {
                 HStack(spacing: 4) {
@@ -32,10 +44,10 @@ struct SavingsBanner: View {
         }
         .padding()
         .background(
-            LinearGradient(colors: [.green.opacity(0.15), .blue.opacity(0.1)], startPoint: .leading, endPoint: .trailing)
+            LinearGradient(colors: [.green.opacity(0.12), .blue.opacity(0.08)], startPoint: .leading, endPoint: .trailing)
         )
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Today's savings: \(savings). CO2 offset: \(co2Offset)")
+        .accessibilityLabel("Today's savings: \(savings). Net cost: \(netCost). CO2 offset: \(co2Offset)")
     }
 }

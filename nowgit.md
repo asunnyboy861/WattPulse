@@ -64,7 +64,14 @@
 
 These are documented in `capabilities.md` as manual configuration steps.
 
+## Policy Pages (GitHub Pages)
+
+| Page | URL | Status |
+|------|-----|--------|
+| Landing Page | https://asunnyboy861.github.io/WattPulse/ | ✅ Active |
+| Support | https://asunnyboy861.github.io/WattPulse/support.html | ✅ Active |
+| Privacy Policy | https://asunnyboy861.github.io/WattPulse/privacy.html | ✅ Active |
+
 ## Next Steps
-1. PHASE 7: Deploy policy pages (privacy, terms, support) to GitHub Pages
-2. PHASE 8: Generate ASO-optimized App Store keytext
-3. PHASE 8.5: Generate manual configuration checklist
+1. PHASE 8: Generate ASO-optimized App Store keytext ✅
+2. PHASE 8.5: Generate manual configuration checklist ✅
